@@ -1,7 +1,6 @@
 use shared::{send_message, Pid1Message};
 use std::ffi::CString;
 use std::io;
-use std::io::Write;
 use std::path::PathBuf;
 use std::{env, fs};
 use vsock::{VsockStream, VMADDR_CID_HOST};

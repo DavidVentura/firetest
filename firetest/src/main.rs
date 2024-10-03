@@ -1,7 +1,7 @@
 use cpio::{newc, NewcBuilder};
 //use firecracker_spawn::{Disk, NetConfig, Vm};
 use firecracker_spawn::Vm;
-use shared::{recv_pid1_msg, Pid1Message};
+use shared::{receive_message, Pid1Message};
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -83,44 +83,40 @@ fn main() {
     };
     let handle = thread::spawn(move || {
         let listener = UnixListener::bind(vsock_listener).unwrap();
-        for stream in listener.incoming() {
-            match stream {
-                Ok(mut stream) => {
-                    loop {
-                        let msg = recv_pid1_msg(&mut stream);
-                        match msg {
-                            Ok(msg) => {
-                                match msg {
-                                    None => return, // EOF
-                                    Some(msg) => match msg {
-                                        Pid1Message::Booted { cmdline } => {
-                                            println!("booted with cmdline {}", cmdline)
-                                        }
-                                        Pid1Message::UserProcessFinished {
-                                            stdout,
-                                            stderr,
-                                            exit_code,
-                                        } => {
-                                            println!("Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
-                                                     exit_code,
-                                                     String::from_utf8_lossy(stdout.as_slice()),
-                                                     String::from_utf8_lossy(stderr.as_slice()),
-                                                     );
-                                        }
-                                        other => {
-                                            println!("got msg {other:?}");
-                                        }
-                                    },
-                                }
+        let stream = listener.incoming().next();
+        if stream.is_none() {
+            return;
+        }
+        match stream.unwrap() {
+            Ok(mut stream) => {
+                loop {
+                    let msg: Option<Pid1Message> = receive_message(&mut stream).unwrap();
+                    match msg {
+                        None => return, // EOF
+                        Some(msg) => match msg {
+                            Pid1Message::Booted { cmdline } => {
+                                println!("booted with cmdline {}", cmdline)
                             }
-                            Err(e) => {
-                                panic!("failed to recv msg {}", e);
+                            Pid1Message::UserProcessFinished {
+                                stdout,
+                                stderr,
+                                exit_code,
+                            } => {
+                                println!(
+                                    "Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
+                                    exit_code,
+                                    String::from_utf8_lossy(stdout.as_slice()),
+                                    String::from_utf8_lossy(stderr.as_slice()),
+                                );
                             }
-                        }
+                            other => {
+                                println!("got msg {other:?}");
+                            }
+                        },
                     }
                 }
-                Err(_) => panic!("uh"),
             }
+            Err(_) => panic!("uh"),
         }
     });
     // TODO this could go to a different log for kernel

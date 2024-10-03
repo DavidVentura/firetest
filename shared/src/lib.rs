@@ -1,8 +1,8 @@
 use bincode::{deserialize, serialize};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io::{Read, Write};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Pid1Message {
     Booted {
         cmdline: String,
@@ -26,7 +26,7 @@ pub enum Pid1Message {
         reason: String,
     },
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum HypervisorMessage {
     Exit,
 }
@@ -44,7 +44,7 @@ where
     Ok(())
 }
 
-fn receive_message<T: Read>(stream: &mut T) -> std::io::Result<Option<Vec<u8>>> {
+pub fn receive_message<T: Read, K: DeserializeOwned>(stream: &mut T) -> std::io::Result<Option<K>> {
     let mut length_bytes = [0u8; 4];
     if stream.read_exact(&mut length_bytes).is_err() {
         return Ok(None); // Connection closed
@@ -53,33 +53,8 @@ fn receive_message<T: Read>(stream: &mut T) -> std::io::Result<Option<Vec<u8>>> 
 
     let mut buffer = vec![0u8; length];
     stream.read_exact(&mut buffer)?;
+    let msg = deserialize::<K>(buffer.as_slice())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    Ok(Some(buffer))
-}
-
-// generics are hard OK
-pub fn recv_pid1_msg<T: Read>(stream: &mut T) -> std::io::Result<Option<Pid1Message>> {
-    let opt = receive_message(stream)?;
-    match opt {
-        None => Ok(None),
-        buf => {
-            let msg = deserialize::<Pid1Message>(buf.unwrap().as_slice())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-            Ok(Some(msg))
-        }
-    }
-}
-
-pub fn recv_hypervisor_message<T: Read>(
-    stream: &mut T,
-) -> std::io::Result<Option<HypervisorMessage>> {
-    let opt = receive_message(stream)?;
-    match opt {
-        None => Ok(None),
-        buf => {
-            let msg = deserialize::<HypervisorMessage>(buf.unwrap().as_slice())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-            Ok(Some(msg))
-        }
-    }
+    Ok(Some(msg))
 }
