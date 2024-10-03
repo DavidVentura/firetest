@@ -1,11 +1,12 @@
 use cpio::{newc, NewcBuilder};
 //use firecracker_spawn::{Disk, NetConfig, Vm};
 use firecracker_spawn::Vm;
+use shared::{recv_pid1_msg, Pid1Message};
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::{io, thread};
@@ -85,12 +86,38 @@ fn main() {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    let mut buf = Vec::new();
-                    // this read_to_end waits for the conn to close
-                    stream.read_to_end(&mut buf).unwrap();
-                    let s = String::from_utf8(buf).unwrap();
-                    println!("got {s}");
-                    break;
+                    loop {
+                        let msg = recv_pid1_msg(&mut stream);
+                        match msg {
+                            Ok(msg) => {
+                                match msg {
+                                    None => return, // EOF
+                                    Some(msg) => match msg {
+                                        Pid1Message::Booted { cmdline } => {
+                                            println!("booted with cmdline {}", cmdline)
+                                        }
+                                        Pid1Message::UserProcessFinished {
+                                            stdout,
+                                            stderr,
+                                            exit_code,
+                                        } => {
+                                            println!("Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
+                                                     exit_code,
+                                                     String::from_utf8_lossy(stdout.as_slice()),
+                                                     String::from_utf8_lossy(stderr.as_slice()),
+                                                     );
+                                        }
+                                        other => {
+                                            println!("got msg {other:?}");
+                                        }
+                                    },
+                                }
+                            }
+                            Err(e) => {
+                                panic!("failed to recv msg {}", e);
+                            }
+                        }
+                    }
                 }
                 Err(_) => panic!("uh"),
             }

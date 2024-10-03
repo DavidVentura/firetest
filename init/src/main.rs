@@ -1,3 +1,4 @@
+use shared::{send_message, Pid1Message};
 use std::ffi::CString;
 use std::io;
 use std::io::Write;
@@ -70,6 +71,15 @@ fn mknod(path: &str, major: u32, minor: u32, mode: u32) -> Result<(), io::Error>
 fn main() {
     let mut s = VsockStream::connect_with_cid_port(VMADDR_CID_HOST, 1234).unwrap();
     let args: Vec<String> = env::args().collect();
+    send_message(
+        &mut s,
+        &Pid1Message::Booted {
+            cmdline: "my cmdline".to_string(),
+        },
+    )
+    .expect("unable to send booted message");
+    println!("sent stuff");
+
     setup_environment().expect("was not able to set up /proc /sys /dev");
 
     // ugh - netlink?
@@ -90,10 +100,17 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     match cmd.output() {
         Ok(r) => {
-            println!("goood");
-            s.write_all(&r.stdout).unwrap();
-            s.write_all(&r.stderr).unwrap();
-        } //r.status.code().unwrap(),
+            println!("xgoood");
+            send_message(
+                &mut s,
+                &Pid1Message::UserProcessFinished {
+                    stdout: r.stdout,
+                    stderr: r.stderr,
+                    exit_code: r.status.code().unwrap(),
+                },
+            )
+            .expect("unable to send msg");
+        }
         Err(e) => {
             // TODO
             println!("xxxxxxxx {e}\n\n\n");
