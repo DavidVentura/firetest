@@ -21,6 +21,12 @@ Guest:
 - No module loading, so all kernel requirements must be built-in
 - There's no userland, so tested binaries must be static
 
+## Install
+
+```
+cargo install --git https://github.com/DavidVentura/firetest.git firetest
+```
+
 ## Usage
 
 ```

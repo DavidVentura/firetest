@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 cpio = "0.4.0"
-firecracker-spawn = { version = "0.1.0", path = "../../firecracker-spawn" }
+firecracker-spawn = { git = "https://github.com/DavidVentura/firecracker-spawn.git", branch = "master" }
 memfd = "0.6.4"
 shared = { version = "0.1.0", path = "../shared" }
 tempfile = "3.13.0"
