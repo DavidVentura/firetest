@@ -22,6 +22,7 @@ pub(crate) fn buf_to_fd(name: &str, buf: &[u8]) -> Result<File, Box<dyn Error>> 
 pub(crate) fn zstd_buf_to_fd(name: &str, buf: &[u8]) -> Result<File, Box<dyn Error>> {
     let mut zstd_dec = Decoder::new(buf)?;
     let mut dec_buf = Vec::new();
+    // TODO: this is an extra copy
     zstd_dec.read_to_end(&mut dec_buf)?;
     buf_to_fd(name, &dec_buf)
 }

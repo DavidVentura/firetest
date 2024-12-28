@@ -48,7 +48,7 @@ fn build_initrd(bin_path: &str, bin_name: &str) -> Result<File, Box<dyn Error>> 
     Ok(cpio_file)
 }
 
-fn main() {
+fn main() -> std::process::ExitCode {
     let args: Vec<String> = env::args().collect();
     let bin_path = &args[1];
     let bin_name = Path::new(&args[1]).file_name().unwrap().to_str().unwrap();
@@ -56,17 +56,19 @@ fn main() {
     let cpio_file = build_initrd(bin_path, bin_name).expect("Could not build initrd");
     let str_args = args[2..].join(" ");
 
+    // ~26 millis
     let kernel =
         utils::zstd_buf_to_fd("kernel", KERNEL_BYTES).expect("Cannot mount kernel as memfd");
 
+    // TODO: this should be a unique path
     let vsock_path = "/tmp/test.v.sock";
-    let port = 1234;
+    let port = 1235;
     let vsock_listener = format!("{}_{}", vsock_path, port);
     let _ = fs::remove_file(vsock_path);
     let _ = fs::remove_file(&vsock_listener);
 
     let kernel_cmdline = format!(
-        "quiet panic=-1 reboot=t rdinit=/init -- /{bin_name} {str_args}" //"quiet panic=-1 reboot=t rdinit=/strace -- -f /init /{bin_name} {str_args}"
+        "quiet panic=-1 reboot=t rdinit=/init C_PORT={port} -- /{bin_name} {str_args}" //"quiet panic=-1 reboot=t rdinit=/strace -- -f /init /{bin_name} {str_args}"
     );
 
     let v = Vm {
@@ -81,46 +83,53 @@ fn main() {
         use_hugepages: false,
         vsock: Some(vsock_path.to_string()),
     };
-    let handle = thread::spawn(move || {
-        let listener = UnixListener::bind(vsock_listener).unwrap();
-        let stream = listener.incoming().next();
-        if stream.is_none() {
-            return;
-        }
-        match stream.unwrap() {
-            Ok(mut stream) => {
-                loop {
-                    let msg: Option<Pid1Message> = receive_message(&mut stream).unwrap();
-                    match msg {
-                        None => return, // EOF
-                        Some(msg) => match msg {
-                            Pid1Message::Booted { cmdline } => {
-                                println!("booted with cmdline {}", cmdline)
-                            }
-                            Pid1Message::UserProcessFinished {
-                                stdout,
-                                stderr,
-                                exit_code,
-                            } => {
-                                println!(
-                                    "Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
+    // 64MB + hugepages ~30ms boot
+    // 256MB + nopages ~70ms boot
+    let mut vmm_exit_code = 0;
+    thread::scope(|s| {
+        s.spawn(|| {
+            let listener = UnixListener::bind(vsock_listener).unwrap();
+            let stream = listener.incoming().next();
+            if stream.is_none() {
+                return;
+            }
+            match stream.unwrap() {
+                Ok(mut stream) => {
+                    loop {
+                        let msg: Option<Pid1Message> = receive_message(&mut stream).unwrap();
+                        match msg {
+                            None => return, // EOF
+                            Some(msg) => match msg {
+                                Pid1Message::Booted { cmdline } => {
+                                    println!("booted with cmdline {}", cmdline)
+                                }
+                                Pid1Message::UserProcessFinished {
+                                    stdout,
+                                    stderr,
                                     exit_code,
-                                    String::from_utf8_lossy(stdout.as_slice()),
-                                    String::from_utf8_lossy(stderr.as_slice()),
-                                );
-                            }
-                            other => {
-                                println!("got msg {other:?}");
-                            }
-                        },
+                                } => {
+                                    println!(
+                                        "Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
+                                        exit_code,
+                                        String::from_utf8_lossy(stdout.as_slice()),
+                                        String::from_utf8_lossy(stderr.as_slice()),
+                                    );
+                                    vmm_exit_code = exit_code;
+                                }
+                                other => {
+                                    println!("got msg {other:?}");
+                                }
+                            },
+                        }
                     }
                 }
+                Err(e) => panic!("uh: {e:?}"),
             }
-            Err(_) => panic!("uh"),
-        }
+        });
+        // TODO this could go to a different log for kernel
+        //v.make(Box::new(io::stdout())).unwrap();
+        v.make(Box::new(io::sink())).unwrap();
     });
-    // TODO this could go to a different log for kernel
-    v.make(Box::new(io::sink())).unwrap();
-    //v.make(Box::new(io::stdout())).unwrap();
-    handle.join().unwrap();
+    // UGH as u8
+    std::process::ExitCode::from(vmm_exit_code as u8)
 }
