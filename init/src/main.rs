@@ -68,7 +68,8 @@ fn mknod(path: &str, major: u32, minor: u32, mode: u32) -> Result<(), io::Error>
 }
 
 fn main() {
-    let mut s = VsockStream::connect_with_cid_port(VMADDR_CID_HOST, 1234).unwrap();
+    let port = std::env::var("C_PORT").unwrap().parse::<u32>().unwrap();
+    let mut s = VsockStream::connect_with_cid_port(VMADDR_CID_HOST, port).unwrap();
     let args: Vec<String> = env::args().collect();
     send_message(
         &mut s,
@@ -96,7 +97,7 @@ fn main() {
         cmd.args(&args[2..]);
     }
 
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::thread::sleep(std::time::Duration::from_millis(1));
     match cmd.output() {
         Ok(r) => {
             println!("xgoood");
@@ -115,5 +116,5 @@ fn main() {
             println!("xxxxxxxx {e}\n\n\n");
         }
     }
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::thread::sleep(std::time::Duration::from_millis(1));
 }
