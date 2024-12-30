@@ -7,3 +7,10 @@ edition = "2021"
 libc = "0.2.159"
 shared = { version = "0.1.0", path = "../shared" }
 vsock = "0.5.1"
+
+[profile.release]
+strip = true
+# these vvv move 519k -> 475k, not worth build times/devex
+#lto = true
+#panic = "abort"
+#codegen-units = 1
