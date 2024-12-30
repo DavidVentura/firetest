@@ -116,6 +116,10 @@ fn main() -> std::process::ExitCode {
                                     );
                                     vmm_exit_code = exit_code;
                                 }
+                                Pid1Message::FailedToLaunch { reason } => {
+                                    println!("Failed to launch Pid1: {}", reason);
+                                    vmm_exit_code = 255;
+                                }
                                 other => {
                                     println!("got msg {other:?}");
                                 }

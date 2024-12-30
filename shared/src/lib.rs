@@ -25,6 +25,9 @@ pub enum Pid1Message {
     Exiting {
         reason: String,
     },
+    FailedToLaunch {
+        reason: String,
+    },
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum HypervisorMessage {

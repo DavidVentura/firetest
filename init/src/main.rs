@@ -112,8 +112,13 @@ fn main() {
             .expect("unable to send msg");
         }
         Err(e) => {
-            // TODO
-            println!("xxxxxxxx {e}\n\n\n");
+            send_message(
+                &mut s,
+                &Pid1Message::FailedToLaunch {
+                    reason: e.to_string(),
+                },
+            )
+            .unwrap();
         }
     }
     std::thread::sleep(std::time::Duration::from_millis(1));
