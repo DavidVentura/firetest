@@ -108,12 +108,8 @@ fn main() -> std::process::ExitCode {
                                     stderr,
                                     exit_code,
                                 } => {
-                                    println!(
-                                        "Process got exit code: {}, stdout:\n{}\nstderr: {}\n",
-                                        exit_code,
-                                        String::from_utf8_lossy(stdout.as_slice()),
-                                        String::from_utf8_lossy(stderr.as_slice()),
-                                    );
+                                    println!("{}", String::from_utf8_lossy(stdout.as_slice()));
+                                    eprintln!("{}", String::from_utf8_lossy(stderr.as_slice()));
                                     vmm_exit_code = exit_code;
                                 }
                                 Pid1Message::FailedToLaunch { reason } => {
