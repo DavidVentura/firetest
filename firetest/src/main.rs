@@ -100,8 +100,8 @@ fn main() -> std::process::ExitCode {
                         match msg {
                             None => return, // EOF
                             Some(msg) => match msg {
-                                Pid1Message::Booted { cmdline } => {
-                                    println!("booted with cmdline {}", cmdline)
+                                Pid1Message::Booted { cmdline: _ } => {
+                                    // println!("booted with cmdline {}", cmdline)
                                 }
                                 Pid1Message::UserProcessFinished {
                                     stdout,
